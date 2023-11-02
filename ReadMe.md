@@ -2,12 +2,15 @@
 
 1. install npm packages
  
-            bash ``` 
             npm install 
-            ```
+            
 
-2. to run game ::  
+2. to run game 
 
-        bash ``` 
             node wordle.js
-        ```s
+        
+3. to run test cases
+        
+        * npm install mocha
+        * npm install sinon
+        * npx mocha wordle.test.js
