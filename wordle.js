@@ -1,128 +1,145 @@
-const fs = require("fs");
-const readline = require("readline-sync");
 
-const filepath = "sgb-words.txt"
+const readline = require("readline");
+const fs = require("fs").promises;
+const chalk = require("chalk");
 
-function readTxtFile(file) {
-    const data = fs.readFileSync(file, 'utf8');
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-    return data.split('\n').map(word => word.trim());
+let wordList;
+let chances = 6;
+let hidden = "";
+// let last = "";
+
+async function loadWordList() {
+  try {
+    const data = await fs.readFile("sgb-words.txt", "utf-8");
+    wordList = data.split("\n").map((word) => word.trim());
+    // console.log(wordList);
+    
+  } catch (error) {
+    console.error("Error reading the word list:", error);
+    process.exit(1);
+  }
 }
 
-function getRandomWord(wordList) {
-    const randomIndex = Math.floor(Math.random() * wordList.length);
-    return wordList[randomIndex];
-
+function displayWelcomeMessage(word) {
+  console.log(`Hello User, Welcome to ${word.length} letters Wordle Guess Game`);
+  console.log("Instructions:");
+  console.log("1. If the letter is in the word and in the right spot, it will turn green.");
+  console.log("2. If the letter is in the word, but not in the right spot, it will turn yellow.");
+  console.log("3. If the letter turns gray, the letter is not in the word at all.");
+  console.log(`The word is ${word}`);
 }
 
-
-function userInput() {
-    const userInput = readline.question('please enter your word:');
-    return userInput;
-
+function displayGameStartMessage(attempts) {
+  console.log(`You have ${attempts} attempts to guess the word.`);
 }
 
-function userInputAgain() {
-    const userInputAgain = readline.question('enter 1 to start game : enter 0 to end the game');
-    return userInputAgain;
+async function startGame() {
+  while (chances > 0) {
+    console.log(`Attempts left: ${chances}`);
+    const guess = await promptForGuess();
 
-}
-
-function guessLetter(input, random) {
-    const obj = {};
-
-    for (let i = 0; i < random.length; i++) {
-        if (obj[random[i]] == undefined) {
-            obj[random[i]] = 1;
-        } else {
-            obj[random[i]]++;
-        }
-    }
-    for (let i = 0; i < input.length; i++) {
-        if (obj[input[i]]) {
-            if (random[i] == input[i]) {
-                console.log(`index ${i} : \x1b[32m${input[i]}\x1b[0m`); // green
-                if (obj[input[i]] > 1) {
-                    obj[input[i]]--
-                } else {
-                    delete obj[input[i]]
-                }
-            } else {
-                console.log(`index ${i} : \x1b[34m${input[i]}\x1b[0m`); // blue
-                if (obj[input[i]] > 1) {
-                    obj[input[i]]--
-                } else {
-                    delete obj[input[i]]
-                }
-            }
-        } else {
-            console.log(`index ${i} : \x1b[31m${input[i]}\x1b[0m`); // red
-        }
-    }
-}
-
-
-
-
-function gameWordle(wordle) {
-
-    let newGame = 1;
-
-    while (newGame) {
-        let i = 0;
-        const random = getRandomWord(wordle);
-        console.log(random);
-        while (i < 6) {
-            const input = userInput()
-            if (input === random) {
-                console.log(`You Win : word is ${random}`);
-                break;
-            }
-            else if (!wordle.includes(input)) {
-                console.log("word not present in list");
-                continue;
-
-            }
-            else {
-                guessLetter(input, random);
-            }
-            i++;
-
-        }
-
-        if (i == 6) {
-            console.log("you Lost ");
-
-        }
-        // console.log("To play again :: press 1");
-
-        const playAgain = userInputAgain()
-        if (playAgain == 0) {
-            newGame = 0;
-            // console.log("press 1 to start : enter 0 to end game");
-
-        }
-        else {
-            console.log("new Game Enjoy !!");
-
-        }
+    if (guess === hidden) {
+      console.log(`Congratulations! You guessed the word: ${hidden}`);
+      rl.close();
+      return;
     }
 
+    const feedback = evaluateGuess(hidden, guess);
+    displayFeedback(feedback);
 
+    chances--;
+  }
 
-
+  gameOver();
 }
 
+async function promptForGuess() {
+  let guess;
 
-function main() {
-    const wordle = readTxtFile(filepath)
-    console.log(wordle);
+  do {
+    guess = await new Promise((resolve) => rl.question("Guess the word: ", resolve));
+    if (guess.length !== hidden.length || !wordList.includes(guess)) {
+      console.log("Invalid guess. Try again.");
+    }
+  } while (guess.length !== hidden.length || !wordList.includes(guess));
 
-    // const randomWord = getRandomWord(wordle);
-    // console.log(randomWord);
-
-
-    gameWordle(wordle);
+  return guess;
 }
 
-main()
+function evaluateGuess(wordToGuess, guess) {
+  const feedback = [];
+    // console.log(wordToGuess);
+    
+  for (let i = 0; i < wordToGuess.length; i++) {
+    const guessedLetter = guess[i];
+    const isCorrect = guessedLetter === wordToGuess[i];
+
+    feedback.push({
+      index: i,
+      guessedLetter,
+      status: isCorrect ? "green" : "grey",
+    });
+  }
+
+  for (let i = 0; i < wordToGuess.length; i++) {
+    if (feedback[i].status === "grey" && wordToGuess.includes(guess[i])) {
+      const correctIndex = wordToGuess.indexOf(guess[i]);
+      feedback[i].status = "yellow";
+      wordToGuess = wordToGuess.substring(0, correctIndex) + wordToGuess.substring(correctIndex + 1);
+    }
+  }
+
+  feedback.sort((a, b) => a.index - b.index);
+
+  return feedback;
+}
+
+function displayFeedback(feedback) {
+  feedback.forEach((item) => {
+    console.log(`index: ${item.index}, guessedLetter: ${chalk[item.status](item.guessedLetter)}   status: ${chalk[item.status](item.status)}`);
+  });
+}
+
+function gameOver() {
+  console.log("Game over. You have run out of chances.");
+  console.log(`The word was: ${hidden}`);
+  rl.close();
+}
+
+async function initializeAndStartWordleGame(wordListArray) {
+  if (Array.isArray(wordListArray) && wordListArray.length > 0) {
+    wordList = wordListArray;
+  } else {
+    await loadWordList();
+  }
+
+  chances = 6;
+  hidden = wordList[Math.floor(Math.random() * wordList.length)];
+
+  displayWelcomeMessage(hidden);
+  console.log("Press start button to start the game");
+
+  const input = await new Promise((resolve) => rl.question("", resolve));
+
+  if (input === "start") {
+    displayGameStartMessage(chances);
+    await startGame();
+  } else {
+    console.log("Invalid input. Please press the start button to start the game.");
+    rl.close();
+  }
+}
+
+initializeAndStartWordleGame();
+
+module.exports = {
+  loadWordList,
+  promptForGuess,
+  evaluateGuess,
+  startGame
+}
