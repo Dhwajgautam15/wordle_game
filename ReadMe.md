@@ -13,4 +13,4 @@
         
         * npm install mocha
         * npm install sinon
-        * npx mocha wordle.test.js
+        * npx mocha testWordle.test.js
